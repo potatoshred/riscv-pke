@@ -84,7 +84,7 @@ typedef union {
 // returns the number (should be 1) of string(s) after PKE kernel in command line.
 // and store the string(s) in arg_bug_msg.
 //
-static size_t parse_args(arg_buf *arg_bug_msg) {
+size_t parse_args(arg_buf *arg_bug_msg) {
   // HTIFSYS_getmainvars frontend call reads command arguments to (input) *arg_bug_msg
   long r = frontend_syscall(HTIFSYS_getmainvars, (uint64)arg_bug_msg,
       sizeof(*arg_bug_msg), 0, 0, 0, 0, 0);
