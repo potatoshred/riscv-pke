@@ -9,7 +9,8 @@
 #include "pmm.h"
 #include "vmm.h"
 #include "util/functions.h"
-
+#include "util/string.h"
+#include "memlayout.h"
 #include "spike_interface/spike_utils.h"
 
 //
@@ -58,12 +59,25 @@ void handle_user_page_fault(uint64 mcause, uint64 sepc, uint64 stval) {
   sprint("handle_page_fault: %lx\n", stval);
   switch (mcause) {
     case CAUSE_STORE_PAGE_FAULT:
+    case CAUSE_LOAD_PAGE_FAULT: 
       // TODO (lab2_3): implement the operations that solve the page fault to
       // dynamically increase application stack.
       // hint: first allocate a new physical page, and then, maps the new page to the
-      // virtual address that causes the page fault.
-      panic( "You need to implement the operations that actually handle the page fault in lab2_3.\n" );
+      // virtual address that causes the page fault.      
+      // Only handle page faults that belong to the user stack region.
+      // The user stack grows downward from USER_STACK_TOP.
+      if (stval <= USER_FREE_ADDRESS_START || stval > USER_STACK_TOP) {
+        sprint("stack region: [%lx, %lx] stval=%lx\n", USER_FREE_ADDRESS_START, USER_STACK_TOP, stval);
+        panic("panic by stack overflow\n");
+      }
 
+      uint64 va = ROUNDDOWN(stval, PGSIZE);
+      void *pa = alloc_page();
+      if (!pa) panic("out of physical memory when handling page fault\n");
+      memset(pa, 0, PGSIZE);
+      // map with user read/write permissions
+      int perm = prot_to_type(PROT_READ | PROT_WRITE, 1);
+      user_vm_map(current->pagetable, va, PGSIZE, (uint64)pa, perm);
       break;
     default:
       sprint("unknown page fault.\n");
