@@ -68,7 +68,11 @@ void handle_user_page_fault(uint64 mcause, uint64 sepc, uint64 stval) {
       // The user stack grows downward from USER_STACK_TOP.
       if (stval <= USER_FREE_ADDRESS_START || stval > USER_STACK_TOP) {
         sprint("stack region: [%lx, %lx] stval=%lx\n", USER_FREE_ADDRESS_START, USER_STACK_TOP, stval);
-        panic("panic by stack overflow\n");
+        panic("panic by stack overflow");
+      }
+
+      if (stval >= g_ufree_page && stval < current->trapframe->regs.sp) {
+        panic("this address is not available!");
       }
 
       uint64 va = ROUNDDOWN(stval, PGSIZE);
