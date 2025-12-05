@@ -71,6 +71,12 @@ int fork() {
 }
 
 //
+// lib call to naive_wait
+int wait(int pid) {
+  return do_user_call(SYS_user_wait, (uint64)pid, 0, 0, 0, 0, 0, 0);
+}
+
+//
 // lib call to yield
 //
 void yield() {

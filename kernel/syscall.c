@@ -35,6 +35,13 @@ ssize_t sys_user_exit(uint64 code) {
   sprint("User exit with code:%d.\n", code);
   // reclaim the current process, and reschedule. added @lab3_1
   free_process( current );
+  
+  // 唤醒正在等待当前进程的父进程
+  if (current->parent != NULL && current->parent->status == BLOCKED) {
+    current->parent->status = READY;
+    insert_to_ready_queue(current->parent);
+  }
+  
   schedule();
   return 0;
 }
@@ -96,6 +103,50 @@ ssize_t sys_user_yield() {
   return 0;
 }
 
+// added @lab3_challenge1
+ssize_t sys_user_wait(uint64 pid) {
+  // sprint("User call wait for pid %d.\n", pid);
+
+  while (1) {
+    int have_kids = 0;
+
+    if (pid == -1) {
+      // 等待任意子进程
+      for (int i = 0; i < NPROC; i++) {
+        if (procs[i].status != FREE && procs[i].parent == current) {
+          have_kids = 1;
+          if (procs[i].status == ZOMBIE) {
+            // sprint("Wait: reaping zombie child %d\n", procs[i].pid);
+            procs[i].status = FREE; // 回收
+            return procs[i].pid;    // 返回子进程 PID
+          }
+        }
+      }
+    } else {
+      // 等待指定子进程
+      for (int i = 0; i < NPROC; i++) {
+        if (procs[i].pid == pid && procs[i].parent == current) {
+          have_kids = 1;
+          if (procs[i].status == ZOMBIE) {
+            procs[i].status = FREE; // 回收
+            return pid;
+          }
+        }
+      }
+    }
+
+    if (!have_kids) {
+      // 如果没有符合条件的子进程（或者指定的 pid 不是我的子进程），返回错误
+      // sprint("Wait: no child process found for parent %d.\n", current->pid);
+      return -1;
+    }
+
+    // 如果有子进程但都在运行，父进程阻塞等待
+    current->status = BLOCKED;
+    schedule();
+  }
+  return 0;
+}
 //
 // [a0]: the syscall number; [a1] ... [a7]: arguments to the syscalls.
 // returns the code of success, (e.g., 0 means success, fail for otherwise)
@@ -115,6 +166,8 @@ long do_syscall(long a0, long a1, long a2, long a3, long a4, long a5, long a6, l
       return sys_user_fork();
     case SYS_user_yield:
       return sys_user_yield();
+    case SYS_user_wait:
+      return sys_user_wait(a1);
     default:
       panic("Unknown syscall %ld \n", a0);
   }

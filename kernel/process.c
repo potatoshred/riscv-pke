@@ -98,6 +98,10 @@ process* alloc_process() {
     return 0;
   }
 
+  procs[i].parent = NULL;
+  procs[i].queue_next = NULL;
+  procs[i].tick_count = 0;
+
   // init proc[i]'s vm space
   procs[i].trapframe = (trapframe *)alloc_page();  //trapframe, used to save context
   memset(procs[i].trapframe, 0, sizeof(trapframe));
@@ -244,6 +248,23 @@ int do_fork( process* parent)
         child->mapped_info[child->total_mapped_region].npages =
           parent->mapped_info[i].npages;
         child->mapped_info[child->total_mapped_region].seg_type = CODE_SEGMENT;
+        child->total_mapped_region++;
+        break;
+      case DATA_SEGMENT:
+        for (int j = 0; j < parent->mapped_info[i].npages; j++) {
+          uint64 va = parent->mapped_info[i].va + j * PGSIZE;
+          uint64 pa = lookup_pa(parent->pagetable, va);
+
+          void* child_pa = alloc_page();
+          if(child_pa == 0) panic("do_fork: out of memory for data segment\n");
+          memcpy(child_pa, (void*)pa, PGSIZE);
+
+          // sprint("do_fork map data segment at pa:%lx of parent to child at va:%lx.\n", pa, va);
+          user_vm_map(child->pagetable, va, PGSIZE, (uint64)child_pa, prot_to_type(PROT_READ | PROT_WRITE, 1));
+        }
+        child->mapped_info[DATA_SEGMENT].va = parent->mapped_info[i].va;
+        child->mapped_info[DATA_SEGMENT].npages = parent->mapped_info[i].npages;
+        child->mapped_info[DATA_SEGMENT].seg_type = DATA_SEGMENT;
         child->total_mapped_region++;
         break;
     }
