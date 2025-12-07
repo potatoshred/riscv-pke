@@ -81,7 +81,49 @@ struct file *get_opened_file(int fd) {
 //
 int do_open(char *pathname, int flags) {
   struct file *opened_file = NULL;
-  if ((opened_file = vfs_open(pathname, flags)) == NULL) return -1;
+  // convert relative path to absolute path
+  char abs_path[MAX_PATH_LEN];
+  if (pathname[0] == '.'){
+    if (pathname[1] == '/'){
+      do_rcwd(abs_path);
+      if (abs_path[strlen(abs_path)-1] != '/')
+        strcat(abs_path, "/");
+      strcat(abs_path, pathname+2);
+    }else if (pathname[1] == '.'){
+      char temp_path[MAX_PATH_LEN];
+      do_rcwd(temp_path);
+      int last_slash = -1;
+      for (int i = strlen(temp_path) - 1; i >= 0; --i) {
+        if (temp_path[i] == '/') {
+          last_slash = i;
+          break;
+        }
+      }
+      if (last_slash != -1){
+        temp_path[last_slash] = '\0'; // remove the last part
+      }else{
+        strcpy(temp_path, "/");
+      }
+      strcpy(abs_path, temp_path);
+      if (abs_path[strlen(abs_path)-1] != '/')
+        strcat(abs_path, "/");
+      strcat(abs_path, pathname+3);
+    }else{
+      do_rcwd(abs_path);
+      if (abs_path[strlen(abs_path)-1] != '/')
+        strcat(abs_path, "/");
+      strcat(abs_path, pathname);
+    }
+  }else if (pathname[0] == '/'){
+    strcpy(abs_path, pathname);
+  }else{
+    do_rcwd(abs_path);
+    if (abs_path[strlen(abs_path)-1] != '/')
+      strcat(abs_path, "/");
+    strcat(abs_path, pathname);
+  }
+
+  if ((opened_file = vfs_open(abs_path, flags)) == NULL) return -1;
 
   int fd = 0;
   if (current->pfiles->nfiles >= MAX_FILES) {
@@ -220,4 +262,81 @@ int do_link(char *oldpath, char *newpath) {
 //
 int do_unlink(char *path) {
   return vfs_unlink(path);
+}
+
+//
+// read current working directory
+//
+int do_rcwd(char *cwd){
+  memset(cwd, 0, MAX_PATH_LEN);
+  struct dentry *cwd_entry = current->pfiles->cwd;
+  char path[16][MAX_PATH_LEN];
+  
+  int i = 0;
+  for (; cwd_entry != NULL && cwd_entry != vfs_root_dentry; i++){
+    strcpy(path[i], cwd_entry->name);
+    cwd_entry = cwd_entry->parent;
+  }
+  strcat(cwd, "/");
+  while (--i>=0){
+    strcat(cwd, path[i]);
+    if (i!=0)
+      strcat(cwd, "/");
+  }
+
+  return 0;
+}
+
+
+//
+// change current working directory
+//
+int do_ccwd(char *path) {
+  char miss_name[MAX_PATH_LEN];
+  struct dentry *next_dentry = NULL;
+  
+  if (path[0]=='.'){
+    if (path[1]=='.'){ 
+      if(path[2]=='/'){ // go to parent directory
+        struct dentry *parent_dentry = current->pfiles->cwd->parent;
+        if (parent_dentry != NULL)
+          current->pfiles->cwd = parent_dentry;
+        return do_ccwd(path+3);
+      }else if(path[2]=='\0'){
+        struct dentry *parent_dentry = current->pfiles->cwd->parent;
+        if (parent_dentry != NULL)
+          current->pfiles->cwd = parent_dentry;
+        return 0;
+      }else{
+        sprint("do_ccwd: invalid path %s\n", path);
+        return -1;
+      }
+    }else if (path[1]=='/'){ // go to sub directory
+      return do_ccwd(path+2);
+    }else if(path[1]=='\0'){ // just "."
+      return 0;
+    }else{
+      sprint("do_ccwd: invalid path %s\n", path);
+      return -1; 
+    }
+  }else if (path[0]=='/'){ // absolute path
+    struct dentry *root = vfs_root_dentry;
+    next_dentry = lookup_final_dentry(path, &root, miss_name);
+    if (next_dentry == NULL || next_dentry->dentry_inode->type != DIR_I) {
+      sprint("do_ccwd: directory %s not found\n", miss_name);
+      return -1;
+    }
+    current->pfiles->cwd = next_dentry;
+    return 0;
+  }else if(path[0]=='\0'){ // stay at current directory
+    return 0;
+  }else{ // go to sub directory (relative path)
+    next_dentry = lookup_final_dentry(path, &(current->pfiles->cwd), miss_name);
+    if (next_dentry == NULL || next_dentry->dentry_inode->type != DIR_I) {
+      sprint("do_ccwd: directory %s not found\n", miss_name);
+      return -1;
+    }
+    current->pfiles->cwd = next_dentry;
+    return 0;
+  }
 }

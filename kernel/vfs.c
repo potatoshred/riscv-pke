@@ -127,6 +127,7 @@ struct file *vfs_open(const char *path, int flags) {
       // a missing directory exists in the path
       if (strcmp(miss_name, basename) != 0) {
         sprint("vfs_open: cannot create file in a non-exist directory!\n");
+        sprint("missing directory: %s\n", miss_name);
         return NULL;
       }
 
