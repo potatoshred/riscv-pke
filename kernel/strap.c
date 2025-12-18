@@ -67,14 +67,14 @@ void handle_user_page_fault(uint64 mcause, uint64 sepc, uint64 stval) {
       // Only handle page faults that belong to the user stack region.
       // The user stack grows downward from USER_STACK_TOP.
       if (stval <= USER_FREE_ADDRESS_START || stval > USER_STACK_TOP) {
-        sprint("stack region: [%lx, %lx] stval=%lx\n", USER_FREE_ADDRESS_START, USER_STACK_TOP, stval);
-        panic("panic by stack overflow");
-      }
-
-      if (stval >= g_ufree_page && stval < USER_STACK_TOP - PGSIZE * STACK_SIZE) {
+        sprint("available user space region: [%lx, %lx] stval=%lx\n", USER_FREE_ADDRESS_START, USER_STACK_TOP, stval);
+        panic("unaccessible region");
+      }else if (stval >= g_ufree_page && stval < USER_STACK_TOP - PGSIZE * STACK_SIZE) {
         panic("this address is not available!");
+      }else if (stval < g_ufree_page) {
+        panic("this could never happen, heap space should already allocated!");
       }
-
+      // allocate a new page for user stack
       uint64 va = ROUNDDOWN(stval, PGSIZE);
       void *pa = alloc_page();
       if (!pa) panic("out of physical memory when handling page fault\n");
