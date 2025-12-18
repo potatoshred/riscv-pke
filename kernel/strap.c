@@ -71,7 +71,7 @@ void handle_user_page_fault(uint64 mcause, uint64 sepc, uint64 stval) {
         panic("panic by stack overflow");
       }
 
-      if (stval >= g_ufree_page && stval < current->trapframe->regs.sp) {
+      if (stval >= g_ufree_page && stval < USER_STACK_TOP - PGSIZE * STACK_SIZE) {
         panic("this address is not available!");
       }
 
