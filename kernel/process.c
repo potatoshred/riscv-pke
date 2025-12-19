@@ -262,9 +262,9 @@ int do_fork( process* parent)
           // sprint("do_fork map data segment at pa:%lx of parent to child at va:%lx.\n", pa, va);
           user_vm_map(child->pagetable, va, PGSIZE, (uint64)child_pa, prot_to_type(PROT_READ | PROT_WRITE, 1));
         }
-        child->mapped_info[DATA_SEGMENT].va = parent->mapped_info[i].va;
-        child->mapped_info[DATA_SEGMENT].npages = parent->mapped_info[i].npages;
-        child->mapped_info[DATA_SEGMENT].seg_type = DATA_SEGMENT;
+        child->mapped_info[child->total_mapped_region].va = parent->mapped_info[i].va;
+        child->mapped_info[child->total_mapped_region].npages = parent->mapped_info[i].npages;
+        child->mapped_info[child->total_mapped_region].seg_type = DATA_SEGMENT;
         child->total_mapped_region++;
         break;
     }
