@@ -18,7 +18,7 @@ _mentry:
     # following codes allocate a 4096-byte stack for each HART, although we use only
     # ONE HART in this lab.
     la sp, stack0		# stack0 is statically defined in kernel/machine/minit.c 
-    li a3, 4096			# 4096-byte stack
+    li a3, 16384			# 4096-byte stack
     csrr a4, mhartid	# [mhartid] = core ID
     addi a4, a4, 1
     mul a3, a3, a4

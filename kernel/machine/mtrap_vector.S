@@ -21,7 +21,7 @@ mtrapvec:
     # switch stack (to use stack0) for the rest of machine mode
     # trap handling.
     la sp, stack0
-    li a3, 4096
+    li a3, 16384
     csrr a4, mhartid
     addi a4, a4, 1
     mul a3, a3, a4

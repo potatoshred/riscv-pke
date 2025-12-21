@@ -280,6 +280,35 @@ void load_bincode_from_host_elf(process *p) {
   // entry (virtual, also physical in lab1_x) address
   p->trapframe->epc = elfloader.ehdr.entry;
 
+  // locate .debug_line section
+  
+  // locate symtab and its associated strtab by scanning section headers
+  uint64 shoff = elfloader.ehdr.shoff;
+  uint16 shnum = elfloader.ehdr.shnum;
+  uint16 shentsize = elfloader.ehdr.shentsize;
+  uint16 shstrndx = elfloader.ehdr.shstrndx;
+
+  uint64 shstrtaboff = shoff + shstrndx * shentsize;
+
+  Elf64_Shdr shstrtab;  // section header of .shstrtab
+  Elf64_Shdr shdr;      // for traverse
+
+  spike_file_t* f = info.f;
+  spike_file_pread(f, &shstrtab, sizeof(shstrtab), shstrtaboff);
+
+  char shstrtab_buf[8192];  // copy of .shstrtab (increased buffer size)
+  spike_file_pread(f, shstrtab_buf, shstrtab.sh_size, shstrtab.sh_offset);
+  for (int i = 0; i < shnum; i++) {
+    uint64 off = shoff + (uint64)i * shentsize;
+    spike_file_pread(f, &shdr, sizeof(shdr), off);
+    // sprint("shname %d: %s\n", i, shstrtab_buf + shdr.sh_name);
+    char* shname = shstrtab_buf + shdr.sh_name;
+    if (strcmp(shname, ".debug_line") == 0) {
+      spike_file_pread(f, shstrtab_buf, shdr.sh_size, shdr.sh_offset);
+      make_addr_line(&elfloader, shstrtab_buf, shdr.sh_size );
+      break;
+    }
+  }
   // close the host spike file
   spike_file_close( info.f );
 

@@ -37,19 +37,30 @@ typedef struct elf_prog_header_t {
   uint64 align;  /* Segment alignment */
 } elf_prog_header;
 
-// elf section header
-typedef struct elf_sect_header_t{
-    uint32 name;
-    uint32 type;
-    uint64 flags;
-    uint64 addr;
-    uint64 offset;
-    uint64 size;
-    uint32 link;
-    uint32 info;
-    uint64 addralign;
-    uint64 entsize;
-} elf_sect_header;
+
+
+// from riscv64-elf-gcc/include/fesvr/elf.h
+typedef struct {
+    uint32 sh_name;
+    uint32 shype;
+    uint64 sh_flags;
+    uint64 sh_addr;
+    uint64 sh_offset;
+    uint64 sh_size;
+    uint32 sh_link;
+    uint32 sh_info;
+    uint64 sh_addralign;
+    uint64 sh_entsize;
+} Elf64_Shdr;
+
+typedef struct {
+    uint32 st_name;
+    uint8 st_info;
+    uint8 st_other;
+    uint16 st_shndx;
+    uint64 st_value;
+    uint64 st_size;
+} Elf64_Sym;
 
 // compilation units header (in debug line section)
 typedef struct __attribute__((packed)) {
@@ -86,5 +97,5 @@ elf_status elf_init(elf_ctx *ctx, void *info);
 elf_status elf_load(elf_ctx *ctx);
 
 void load_bincode_from_host_elf(process *p);
-
+void make_addr_line(elf_ctx *ctx, char *debug_line, uint64 length);
 #endif

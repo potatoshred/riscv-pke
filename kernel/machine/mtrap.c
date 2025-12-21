@@ -1,6 +1,7 @@
 #include "kernel/riscv.h"
 #include "kernel/process.h"
 #include "spike_interface/spike_utils.h"
+#include "util/string.h"
 
 static void handle_instruction_access_fault() { panic("Instruction access fault!"); }
 
@@ -8,7 +9,65 @@ static void handle_load_access_fault() { panic("Load access fault!"); }
 
 static void handle_store_access_fault() { panic("Store/AMO access fault!"); }
 
-static void handle_illegal_instruction() { panic("Illegal instruction!"); }
+static void handle_illegal_instruction() { 
+  // https://zhuanlan.zhihu.com/p/642441074
+  char *dir_path = NULL;
+  char *file_name= NULL;
+  int line_number = 0;
+
+  uint64 pc = read_csr(mepc); 
+
+  // find line 
+  for (int i = 0; i < current->line_ind; i++) {
+    if(pc == current->line[i].addr){
+      line_number = current->line[i].line;
+      file_name = current->file[current->line[i].file].file;
+      dir_path = current->dir[current->file[current->line[i].file].dir];
+      break;
+    }
+  }
+  if (dir_path == NULL || file_name == NULL){
+    sprint("handle_illegal_instruction: cannot find debug info of source code!\n");
+  }else{
+    char full_path[256];
+    strcpy(full_path, dir_path);
+    strcpy(full_path + strlen(dir_path), "/");
+    strcpy(full_path + strlen(dir_path) + 1, file_name);
+    sprint("Runtime error at %s:%d\n", full_path, line_number);
+    char line_buf[512];
+    
+    spike_file_t* f = spike_file_open(full_path, O_RDONLY, 0);
+    if (IS_ERR_VALUE(f)) {
+      sprint("handle_illegal_instruction: cannot open source code file %s!\n", full_path);
+      return;
+    }
+    size_t seek = 0;
+    size_t offset = 0;
+    size_t read_bytes = 0;
+    while (1) {
+      char c;
+      read_bytes = spike_file_pread(f, &c, 1, seek++);
+      if (read_bytes == 0) {
+        sprint("handle_illegal_instruction: cannot find line %d in source code file %s!\n", line_number, full_path);
+        break;
+      }
+      if (c == '\n') {
+        line_number--;
+        if (line_number == 0) {
+          line_buf[offset] = '\0';
+          sprint("%s\n", line_buf);
+          break;
+        }
+        offset = 0;
+      } else {
+        line_buf[offset++] = c;
+      }
+    }
+    spike_file_close(f);
+  }
+  panic("Illegal instruction!"); 
+
+}
 
 static void handle_misaligned_load() { panic("Misaligned Load!"); }
 

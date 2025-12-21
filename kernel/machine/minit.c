@@ -15,7 +15,7 @@
 // NCPU is defined to be 1 in kernel/config.h, as we consider only one HART in basic
 // labs.
 //
-__attribute__((aligned(16))) char stack0[4096 * NCPU];
+__attribute__((aligned(16))) char stack0[16384 * NCPU];
 
 // sstart() is the supervisor state entry point defined in kernel/kernel.c
 extern void s_start();
