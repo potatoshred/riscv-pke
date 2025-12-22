@@ -13,11 +13,15 @@
 
 #include "spike_interface/spike_utils.h"
 
+#include "sync_utils.h"
+volatile int exit_counter = 0;
+
 //
 // implement the SYS_user_print syscall
 //
 ssize_t sys_user_print(const char* buf, size_t n) {
-  sprint("hartid = ?: %s\n", buf);
+  uint64 hartid = read_tp();
+  sprint("hartid = %d: %s", hartid, buf);
   return 0;
 }
 
@@ -25,11 +29,18 @@ ssize_t sys_user_print(const char* buf, size_t n) {
 // implement the SYS_user_exit syscall
 //
 ssize_t sys_user_exit(uint64 code) {
-  sprint("hartid = ?: User exit with code:%d.\n", code);
-  // in lab1, PKE considers only one app (one process). 
-  // therefore, shutdown the system when the app calls exit()
-  sprint("hartid = ?: shutdown with code:%d.\n", code);
-  shutdown(code);
+  uint64 hartid = read_tp();
+  sprint("hartid = %d: User exit with code:%d.\n", hartid, code);
+
+  // wait for all harts to reach here
+  sync_barrier(&exit_counter, NCPU);
+  if (hartid == 0) {
+    // in lab1, PKE considers only one app (one process). 
+    // therefore, shutdown the system when the app calls exit()
+    sprint("hartid = %d: shutdown with code:%d.\n", hartid, code);
+    shutdown(code);
+  }
+  return 0;
 }
 
 //

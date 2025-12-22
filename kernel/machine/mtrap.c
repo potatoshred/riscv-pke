@@ -6,9 +6,14 @@ static void handle_instruction_access_fault() { panic("Instruction access fault!
 
 static void handle_load_access_fault() { panic("Load access fault!"); }
 
-static void handle_store_access_fault() { panic("Store/AMO access fault!"); }
+static void handle_store_access_fault() { 
+  // sprint("mtval=%p, mepc=%p\n", read_csr(mtval), read_csr(mepc));
+  panic("Store/AMO access fault!"); 
+}
 
-static void handle_illegal_instruction() { panic("Illegal instruction!"); }
+static void handle_illegal_instruction() { 
+  // sprint("mtval=%p, mepc=%p\n", read_csr(mtval), read_csr(mepc));
+  panic("Illegal instruction!"); }
 
 static void handle_misaligned_load() { panic("Misaligned Load!"); }
 
@@ -38,6 +43,7 @@ void handle_mtrap() {
       break;
     case CAUSE_LOAD_ACCESS:
       handle_load_access_fault();
+      break;
     case CAUSE_STORE_ACCESS:
       handle_store_access_fault();
       break;
