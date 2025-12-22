@@ -3,6 +3,8 @@
 
 #include "riscv.h"
 
+#define MAX_FRAGMENTS 64
+
 typedef struct trapframe_t {
   // space to store context (all common registers)
   /* offset:0   */ riscv_regs regs;
@@ -26,6 +28,22 @@ typedef struct process_t {
   pagetable_t pagetable;
   // trapframe storing the context of a (User mode) process.
   trapframe* trapframe;
+
+  // simple heap management (Pascal-style)
+  // virtual address of current heap page (highest allocated page)
+  uint64 heap_page_va;
+  // offset into current heap page 
+  uint64 heap_offset;
+  // free list 
+  struct free_block {
+    uint64 va;   // virtual address of block (header start)
+    uint64 size; // total size including header
+    struct free_block* next;
+  } *free_list;
+  // pool for free_block nodes 
+  struct free_block free_pool[MAX_FRAGMENTS];
+  int free_pool_count;
+  
 }process;
 
 // switch to run user app

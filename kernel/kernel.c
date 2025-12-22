@@ -58,6 +58,12 @@ void load_user_program(process *proc) {
   // load_bincode_from_host_elf() is defined in kernel/elf.c
   load_bincode_from_host_elf(proc);
 
+  // initialize heap metadata
+  proc->heap_page_va = 0;
+  proc->heap_offset = 0;
+  proc->free_list = 0;
+  proc->free_pool_count = 0;
+
   // populate the page table of user application. added @lab2_1
   // map user stack in userspace, user_vm_map is defined in kernel/vmm.c
   user_vm_map((pagetable_t)proc->pagetable, USER_STACK_TOP - PGSIZE, PGSIZE, user_stack,

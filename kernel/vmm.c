@@ -160,7 +160,9 @@ void *user_va_to_pa(pagetable_t page_dir, void *va) {
   // Also, it is possible that "va" is not mapped at all. in such case, we can find
   // invalid PTE, and should return NULL.
   // panic( "You have to implement user_va_to_pa (convert user va to pa) to print messages in lab2_1.\n" );
-  uint64 pa = lookup_pa(page_dir, (uint64)va) + ((uint64)va & ((1<<PGSHIFT) -1));
+  uint64 base = lookup_pa(page_dir, (uint64)va);
+  if (!base) return NULL;
+  uint64 pa = base + ((uint64)va & ((1<<PGSHIFT) -1));
   return (void*)pa;
 }
 
@@ -196,11 +198,13 @@ void user_vm_unmap(pagetable_t page_dir, uint64 va, uint64 size, int free) {
     if (pte == 0) continue; // not mapped
     if ((*pte & PTE_V) == 0) continue; // not mapped
 
+    // retrieve the physical page referenced by this PTE
+    uint64 pa = PTE2PA(*pte);
+
     // invalidate the PTE
     *pte = 0;
-        
+
     // reclaim the physical pages if free!=0
-    uint64 pa = PTE2PA(*pte);
     if (free && pa) {
       free_page((void *)pa);
     }
