@@ -61,6 +61,15 @@ typedef struct process_heap_manager {
   uint32 free_pages_count;
 }process_heap_manager;
 
+// maximum number of semaphores per process. added @lab3_challenge_semaphore
+#define MAX_SEMAPHORES 32
+
+// semaphore definition. added @lab3_challenge_semaphore
+typedef struct semaphore_t {
+  int value;  // semaphore value (counter)
+  struct process_t *wait_queue;  // queue of processes waiting on this semaphore
+} semaphore;
+
 // the extremely simple definition of process, used for begining labs of PKE
 typedef struct process_t {
   // pointing to the stack used in trap handling.

@@ -16,6 +16,11 @@
 
 #include "spike_interface/spike_utils.h"
 
+// Global semaphore table. added @lab3_challenge_semaphore
+#define MAX_SEMAPHORES_GLOBAL 128
+semaphore global_semaphores[MAX_SEMAPHORES_GLOBAL];
+int sem_alloc_id = 0;
+
 //
 // implement the SYS_user_print syscall
 //
@@ -85,17 +90,84 @@ ssize_t sys_user_fork() {
 // kerenl entry point of yield. added @lab3_2
 //
 ssize_t sys_user_yield() {
-  // TODO (lab3_2): implment the syscall of yield.
-  // hint: the functionality of yield is to give up the processor. therefore,
-  // we should set the status of currently running process to READY, insert it in
-  // the rear of ready queue, and finally, schedule a READY process to run.
-  // panic( "You need to implement the yield syscall in lab3_2.\n" );
   current->status = READY;
   insert_to_ready_queue(current);
   schedule();
   return 0;
+
+  return 0;
 }
 
+ssize_t sys_user_sem_new(int value) {
+  // Find a free semaphore slot in global semaphore table
+  if (sem_alloc_id >= MAX_SEMAPHORES_GLOBAL) {
+    panic("Too many semaphores created.\n");
+  }
+  
+  int sem_id = sem_alloc_id++;
+  global_semaphores[sem_id].value = value;
+  global_semaphores[sem_id].wait_queue = NULL;
+  
+  return sem_id;
+}
+
+ssize_t sys_user_sem_P(int sem_id) {
+    // P operation (wait/test): decrement semaphore value
+    // If value < 0, block current process and wait on the semaphore
+    if (sem_id < 0 || sem_id >= sem_alloc_id) {
+      panic("Invalid semaphore id: %d\n", sem_id);
+    }
+    
+    semaphore *sem = &global_semaphores[sem_id];
+    sem->value--;
+    
+    if (sem->value < 0) {
+      // Block current process by adding it to the wait queue
+      current->status = BLOCKED;
+      
+      // Add current process to the semaphore's wait queue
+      if (sem->wait_queue == NULL) {
+        current->queue_next = NULL;
+        sem->wait_queue = current;
+      } else {
+        // Add to the end of wait queue
+        process* p = sem->wait_queue;
+        while (p->queue_next != NULL) {
+          p = p->queue_next;
+        }
+        current->queue_next = NULL;
+        p->queue_next = current;
+      }
+      
+      // Schedule another process
+      schedule();
+    }
+    return 0;
+}
+
+ssize_t sys_user_sem_V(int sem_id) {
+    // V operation (signal/release): increment semaphore value
+    // If there are processes waiting, wake one up
+    if (sem_id < 0 || sem_id >= sem_alloc_id) {
+      panic("Invalid semaphore id: %d\n", sem_id);
+    }
+    
+    semaphore *sem = &global_semaphores[sem_id];
+    sem->value++;
+    
+    if (sem->value <= 0 && sem->wait_queue != NULL) {
+      // Wake up the first process in the wait queue
+      process* wake_proc = sem->wait_queue;
+      sem->wait_queue = wake_proc->queue_next;
+      wake_proc->queue_next = NULL;
+      
+      // Change process status to READY and insert to ready queue
+      wake_proc->status = READY;
+      insert_to_ready_queue(wake_proc);
+    }
+    return 0;
+}
+  
 //
 // [a0]: the syscall number; [a1] ... [a7]: arguments to the syscalls.
 // returns the code of success, (e.g., 0 means success, fail for otherwise)
@@ -115,6 +187,12 @@ long do_syscall(long a0, long a1, long a2, long a3, long a4, long a5, long a6, l
       return sys_user_fork();
     case SYS_user_yield:
       return sys_user_yield();
+    case SYS_user_sem_new:
+      return sys_user_sem_new(a1);
+    case SYS_user_sem_P:
+      return sys_user_sem_P(a1);
+    case SYS_user_sem_V:
+      return sys_user_sem_V(a1);
     default:
       panic("Unknown syscall %ld \n", a0);
   }
