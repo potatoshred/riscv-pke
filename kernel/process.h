@@ -106,6 +106,7 @@ process* alloc_process();
 int free_process( process* proc );
 // fork a child from parent
 int do_fork(process* parent);
+int do_exec_process(process* parent, char *pathpa);
 
 // current running process
 extern process* current;

@@ -10,6 +10,9 @@
 #include "pmm.h"
 #include "spike_interface/spike_utils.h"
 
+#include "vfs.h"
+#include "hostfs.h"
+
 typedef struct elf_info_t {
   spike_file_t *f;
   process *p;
@@ -145,12 +148,24 @@ void load_bincode_from_host_elf(process *p) {
 
   sprint("Application: %s\n", arg_bug_msg.argv[0]);
 
+  struct file* f = vfs_open(arg_bug_msg.argv[0], O_RDONLY); // just to check if the file exists
+  if (f == NULL)
+    panic("load_bincode_from_host_elf: Cannot open the application program file!\n");
+  // check if a hostfs file
+  // sprint("Checking if the application is a hostfs file...\n");
+  // sprint("Device name: %s\n", f->f_dentry->sb->s_dev->dev_name);
+  // if (strcmp(f->f_dentry->sb->s_dev->dev_name, "HOSTDEV") != 0)
+  //   panic("Only hostfs files are supported in loading user application!\n");
+  char app_path[MAX_PATH_LEN];
+  get_path_string(app_path, f->f_dentry); // get the full path of the file
+  vfs_close(f);
+
   //elf loading. elf_ctx is defined in kernel/elf.h, used to track the loading process.
   elf_ctx elfloader;
   // elf_info is defined above, used to tie the elf file and its corresponding process.
   elf_info info;
 
-  info.f = spike_file_open(arg_bug_msg.argv[0], O_RDONLY, 0);
+  info.f = spike_file_open(app_path, O_RDONLY, 0);
   info.p = p;
   // IS_ERR_VALUE is a macro defined in spike_interface/spike_htif.h
   if (IS_ERR_VALUE(info.f)) panic("Fail on openning the input application program.\n");

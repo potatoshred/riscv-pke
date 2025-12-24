@@ -17,6 +17,8 @@
 #include "memlayout.h"
 #include "sched.h"
 #include "spike_interface/spike_utils.h"
+#include "vfs.h"
+#include "hostfs.h"
 
 //Two functions defined in kernel/usertrap.S
 extern char smode_trap_vector[];
@@ -226,16 +228,6 @@ int do_fork( process* parent)
         memcpy((void*)&child->user_heap, (void*)&parent->user_heap, sizeof(parent->user_heap));
         break;
       case CODE_SEGMENT:
-        // TODO (lab3_1): implment the mapping of child code segment to parent's
-        // code segment.
-        // hint: the virtual address mapping of code segment is tracked in mapped_info
-        // page of parent's process structure. use the information in mapped_info to
-        // retrieve the virtual to physical mapping of code segment.
-        // after having the mapping information, just map the corresponding virtual
-        // address region of child to the physical pages that actually store the code
-        // segment of parent process.
-        // DO NOT COPY THE PHYSICAL PAGES, JUST MAP THEM.
-        // panic( "You need to implement the code segment mapping of child in lab3_1.\n" );
         for (int j = 0; j < parent->mapped_info[i].npages; j++) {
           uint64 va = parent->mapped_info[i].va + j * PGSIZE;
           uint64 pa = lookup_pa(parent->pagetable, va);
@@ -260,3 +252,81 @@ int do_fork( process* parent)
 
   return child->pid;
 }
+
+typedef struct elf_info_t {
+  spike_file_t *f;
+  process *p;
+} elf_info;
+
+//
+// exec a new process
+// replace current process context
+//
+int do_exec_process(process* parent, char *pathpa){
+  process* p = parent;
+
+  // load the elf file into child process's memory space
+  sprint("Application: %s\n", pathpa);
+
+  struct file* f = vfs_open(pathpa, O_RDONLY); // just to check if the file exists
+  if (f == NULL)
+    panic("do_exec_process: Cannot open the application program file!\n");
+  char app_path[MAX_PATH_LEN];
+  get_path_string(app_path, f->f_dentry); // get the full path of the file
+  vfs_close(f);
+
+  // unmap old code and data segments before exec
+  for (int i = 0; i < p->total_mapped_region; i++) {
+    if (p->mapped_info[i].seg_type == CODE_SEGMENT || 
+        p->mapped_info[i].seg_type == DATA_SEGMENT) {
+      // unmap these pages from the process's page table
+      for (int j = 0; j < p->mapped_info[i].npages; j++) {
+        uint64 va = p->mapped_info[i].va + j * PGSIZE;
+        user_vm_unmap((pagetable_t)p->pagetable, va, PGSIZE, 1);
+        p->mapped_info[i].va = 0;
+        p->mapped_info[i].npages = 0;
+        p->total_mapped_region--;
+      }
+    }
+  }
+
+  // reset the mapped region count to 4 (stack, context, system, heap)
+  // p->total_mapped_region = 4;
+
+  // reset the heap
+  p->user_heap.heap_top = USER_FREE_ADDRESS_START;
+  p->user_heap.heap_bottom = USER_FREE_ADDRESS_START;
+  p->user_heap.free_pages_count = 0;
+  p->mapped_info[HEAP_SEGMENT].npages = 0;
+
+  //elf loading. elf_ctx is defined in kernel/elf.h, used to track the loading process.
+  elf_ctx elfloader;
+  // elf_info is defined above, used to tie the elf file and its corresponding process.
+  elf_info info;
+
+  info.f = spike_file_open(app_path, O_RDONLY, 0);
+  info.p = p;
+  // IS_ERR_VALUE is a macro defined in spike_interface/spike_htif.h
+  if (IS_ERR_VALUE(info.f)) panic("Fail on openning the input application program.\n");
+
+  // init elfloader context. elf_init() is defined above.
+  if (elf_init(&elfloader, &info) != EL_OK)
+    panic("fail to init elfloader.\n");
+
+  // load elf. elf_load() is defined above.
+  if (elf_load(&elfloader) != EL_OK) panic("Fail on loading elf.\n");
+
+  // reset the stack pointer
+  p->trapframe->regs.sp = USER_STACK_TOP;
+
+  // entry (virtual, also physical in lab1_x) address
+  p->trapframe->epc = elfloader.ehdr.entry;
+
+  // close the host spike file
+  spike_file_close( info.f );
+
+  sprint("Application program entry point (virtual address): 0x%lx\n", p->trapframe->epc);
+
+  return 0;
+}
+
