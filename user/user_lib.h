@@ -33,5 +33,8 @@ int closedir_u(int fd);
 int link_u(const char *fn1, const char *fn2);
 int unlink_u(const char *fn);
 
+int exec(const char *cmd, const char *para); // holyshit, at least "parm" for abbreviation... 
+int wait(int pid);
+
 
 #endif

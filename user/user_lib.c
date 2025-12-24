@@ -167,3 +167,19 @@ int unlink_u(const char *fn){
 int close(int fd) {
   return do_user_call(SYS_user_close, fd, 0, 0, 0, 0, 0, 0);
 }
+
+//
+// lib call to exec
+//
+int exec(const char *cmd, const char *para) {
+  do_user_call(SYS_user_exec, (uint64)cmd, (uint64)para, 0, 0, 0, 0, 0);
+  printu("exec should not return!\n");
+  return 0; // should not reach here
+}
+
+//
+// lib call to naive_wait
+int wait(int pid) {
+  return do_user_call(SYS_user_wait, (uint64)pid, 0, 0, 0, 0, 0, 0);
+}
+

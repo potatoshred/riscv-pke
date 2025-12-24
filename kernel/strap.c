@@ -51,25 +51,42 @@ void handle_mtimer_trap() {
 
 }
 
-//
-// the page fault handler. added @lab2_3. parameters:
-// sepc: the pc when fault happens;
-// stval: the virtual address that causes pagefault when being accessed.
-//
-void handle_user_page_fault(uint64 mcause, uint64 sepc, uint64 stval) {
+void handle_store_page_fault(uint64 sepc, uint64 stval) {
   sprint("handle_page_fault: %lx\n", stval);
-  switch (mcause) {
-    case CAUSE_STORE_PAGE_FAULT:
-    case CAUSE_LOAD_PAGE_FAULT: 
-      // TODO (lab2_3): implement the operations that solve the page fault to
-      // dynamically increase application stack.
-      // hint: first allocate a new physical page, and then, maps the new page to the
-      // virtual address that causes the page fault.      
-      // Only handle page faults that belong to the user stack region.
-      // The user stack grows downward from USER_STACK_TOP.
+
+      // COW page fault handling
+      if (stval >= current->user_heap.heap_bottom && stval < current->user_heap.heap_top){
+        int free_block_filter[MAX_HEAP_PAGES];
+        memset(free_block_filter, 0, MAX_HEAP_PAGES);
+        uint64 heap_bottom = current->user_heap.heap_bottom;
+        // sprint("available region: [%lx, %lx] free_pages_count=%lx\n", heap_bottom, current->user_heap.heap_top, current->user_heap.free_pages_count);
+        for (int i = 0; i < current->user_heap.free_pages_count; i++) {
+          int index = (current->user_heap.free_pages_address[i] - heap_bottom) / PGSIZE;
+          free_block_filter[index] = 1;
+        }
+        int index = (stval-current->user_heap.heap_bottom)/PGSIZE;
+        if (free_block_filter[index]) {
+          // the page is already freed
+          panic("accessing a freed heap page in COW handling\n");
+        }else {
+          // allocate a new page and copy data
+          void* pa = alloc_page();
+          if (!pa) panic("out of physical memory when handling COW page fault\n");
+          memset(pa, 0, PGSIZE);
+          uint64 old_pa = lookup_pa(current->pagetable, ROUNDDOWN(stval, PGSIZE));
+          memcpy(pa, (void*)old_pa, PGSIZE);
+          // map with user read/write permissions
+          int perm = prot_to_type(PROT_READ | PROT_WRITE, 1);
+          // unregister the page from free pages
+          user_vm_unmap(current->pagetable, ROUNDDOWN(stval, PGSIZE), PGSIZE, 0);
+          user_vm_map(current->pagetable, ROUNDDOWN(stval, PGSIZE), PGSIZE, (uint64)pa, perm);
+        }
+        return;
+      }
+
       if (stval <= USER_FREE_ADDRESS_START || stval > USER_STACK_TOP) {
-        sprint("stack region: [%lx, %lx] stval=%lx\n", USER_FREE_ADDRESS_START, USER_STACK_TOP, stval);
-        panic("panic by stack overflow\n");
+        sprint("unavailable region: [%lx, %lx] stval=%lx\n", USER_FREE_ADDRESS_START, USER_STACK_TOP, stval);
+        panic("user page fault\n");
       }
 
       uint64 va = ROUNDDOWN(stval, PGSIZE);
@@ -79,11 +96,30 @@ void handle_user_page_fault(uint64 mcause, uint64 sepc, uint64 stval) {
       // map with user read/write permissions
       int perm = prot_to_type(PROT_READ | PROT_WRITE, 1);
       user_vm_map(current->pagetable, va, PGSIZE, (uint64)pa, perm);
-      break;
-    default:
-      sprint("unknown page fault.\n");
-      break;
+}
+
+//
+// the page fault handler. added @lab2_3. parameters:
+// sepc: the pc when fault happens;
+// stval: the virtual address that causes pagefault when being accessed.
+//
+void handle_load_page_fault(uint64 sepc, uint64 stval) {
+  sprint("handle_page_fault: %lx\n", stval);
+
+  if (stval <= USER_FREE_ADDRESS_START || stval > USER_STACK_TOP) {
+    sprint("unavailable region: [%lx, %lx] stval=%lx\n", USER_FREE_ADDRESS_START, USER_STACK_TOP, stval);
+    panic("user page fault\n");
   }
+
+  uint64 va = ROUNDDOWN(stval, PGSIZE);
+  void *pa = alloc_page();
+  if (!pa) panic("out of physical memory when handling page fault\n");
+  memset(pa, 0, PGSIZE);
+  // map with user read/write permissions
+  int perm = prot_to_type(PROT_READ | PROT_WRITE, 1);
+  user_vm_map(current->pagetable, va, PGSIZE, (uint64)pa, perm);
+
+
 }
 
 //
@@ -134,10 +170,12 @@ void smode_trap_handler(void) {
       rrsched();
       break;
     case CAUSE_STORE_PAGE_FAULT:
+      handle_store_page_fault(read_csr(sepc), read_csr(stval));
+      break;
     case CAUSE_LOAD_PAGE_FAULT:
       // the address of missing page is stored in stval
       // call handle_user_page_fault to process page faults
-      handle_user_page_fault(cause, read_csr(sepc), read_csr(stval));
+      handle_load_page_fault(read_csr(sepc), read_csr(stval));
       break;
     default:
       sprint("smode_trap_handler(): unexpected scause %p\n", read_csr(scause));
