@@ -23,8 +23,8 @@
 - [lab3_3_rrsched](https://github.com/potatoshred/riscv-pke/commits/lab3_3_rrsched)
 - [lab3_challenge1_wait](https://github.com/potatoshred/riscv-pke/commits/lab3_challenge1_wait)
 - [lab3_challenge2_semaphore](https://github.com/potatoshred/riscv-pke/commits/lab3_challenge2_semaphore)
----
 - [lab3_challenge3_cow](https://github.com/potatoshred/riscv-pke/commits/lab3_challenge3_cow)
+---
 - [lab4_1_file](https://github.com/potatoshred/riscv-pke/commits/lab4_1_file)
 - [lab4_2_directory](https://github.com/potatoshred/riscv-pke/commits/lab4_2_directory)
 - [lab4_3_hardlink](https://github.com/potatoshred/riscv-pke/commits/lab4_3_hardlink)
